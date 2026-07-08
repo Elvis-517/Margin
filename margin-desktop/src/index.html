@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Margin - 讀書搭子</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-transparent font-sans text-stone-800 selection:bg-amber-200 overflow-hidden">
+
+    <div id="margin-window" class="w-[420px] rounded-[28px] flex flex-col overflow-hidden border border-white/20 relative transition-colors duration-300">
+        
+        <div class="resize-handle absolute top-0 left-0 w-full h-2 cursor-ns-resize z-50" data-resize-dir="n"></div>
+        <div id="resize-handle" class="resize-handle absolute top-0 left-0 w-2 h-full cursor-ew-resize z-50" data-resize-dir="w"></div>
+        <div class="resize-handle absolute top-0 right-0 w-2 h-full cursor-ew-resize z-50" data-resize-dir="e"></div>
+        <div class="resize-handle absolute bottom-0 left-0 w-full h-2 cursor-ns-resize z-50" data-resize-dir="s"></div>
+        <div class="resize-handle absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-[51]" data-resize-dir="nw"></div>
+        <div class="resize-handle absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-[51]" data-resize-dir="ne"></div>
+        <div class="resize-handle absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-[51]" data-resize-dir="sw"></div>
+        <div class="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-[51]" data-resize-dir="se"></div>
+
+        <div id="page-board" class="page flex-1 flex flex-col overflow-hidden">
+            <div class="title-bar p-4 flex justify-between items-center select-none cursor-move">
+                <button id="btn-fold" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-800/5 text-stone-600 transition-colors" title="折疊便簽">📖</button>
+                <span id="board-title" class="text-sm font-semibold tracking-wider opacity-80">隨伴閱讀</span>
+                <button id="btn-settings" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-800/5 text-stone-600 transition-colors">⚙</button>
+            </div>
+
+            <div class="flex-1 px-8 py-2 overflow-y-auto space-y-4 max-h-[calc(80vh-140px)]">
+                <div id="current-quote-box" class="pl-3.5 border-l-2 border-amber-600/60 text-sm text-stone-600/80 leading-relaxed select-text italic">
+                    林黛玉聽了，不覺又喜又驚。
+                </div>
+
+                <div class="flex justify-start">
+                    <button id="btn-toggle-history" class="text-xs font-medium opacity-40 hover:opacity-80 transition-opacity select-none cursor-pointer">
+                        📜 展開歷史批注 (0)
+                    </button>
+                </div>
+
+                <div id="history-container" class="hidden">
+                    <div id="history-flow" class="space-y-4 border-b border-stone-800/5 pb-4 text-sm opacity-60 select-text">
+                    </div>
+                </div>
+
+                <div id="ai-response" class="text-base leading-loose tracking-wide select-text whitespace-pre-wrap">
+                    期待妳的吐槽！在下方輸入並回車...
+                </div>
+            </div>
+
+            <div class="p-6 bg-transparent">
+                <input id="user-input" type="text" placeholder="說點什麼..." autocomplete="off"
+                    class="w-full bg-stone-800/5 border border-stone-800/10 rounded-[14px] px-4 py-3 text-base outline-none focus:border-amber-600/50 transition-all placeholder:text-stone-500/50">
+            </div>
+        </div>
+
+        <div id="page-settings" class="page hidden flex-1 flex flex-col overflow-hidden">
+            <div class="title-bar p-4 flex justify-between items-center select-none cursor-move">
+                <button id="btn-settings-back" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-800/5 text-stone-600 transition-colors">←</button>
+                <span class="text-sm font-semibold tracking-wider opacity-80">偏好設置</span>
+                <div class="w-9 h-9 visibility: hidden"></div>
+            </div>
+
+            <div class="flex-1 px-8 py-4 space-y-6 overflow-y-auto">
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-medium text-stone-500">字體大小</label>
+                        <span id="font-size-value" class="text-xs font-mono opacity-60">16px</span>
+                    </div>
+                    <div class="flex bg-stone-800/5 rounded-lg p-2 border border-stone-800/10">
+                        <input type="range" id="fontSizeSlider" min="12" max="28" value="16" class="w-full accent-amber-700 cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-medium text-stone-500">閱讀字體</label>
+                    <div class="flex bg-stone-800/5 rounded-lg p-1.5 border border-stone-800/10">
+                        <select id="font-family-select" class="w-full bg-transparent text-sm outline-none cursor-pointer text-stone-800">
+                            <option value="default">系統默認</option>
+                            <option value="serif">宋體/襯線</option>
+                            <option value="source-sans">思源黑體</option>
+                            <option value="lxgw">霞鶩文楷</option>
+                            <option value="misans">MiSans</option>
+                            <option value="opposans">OPPO Sans</option>
+                            <option value="得意黑">得意黑</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-medium text-stone-500">界面主題</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="theme-btn py-2.5 text-sm rounded-xl font-medium border border-stone-800/10 active-theme" data-theme="theme-parchment" style="background: #f4efe2; color: #5c4326;">羊皮紙</button>
+                        <button class="theme-btn py-2.5 text-sm rounded-xl font-medium border border-stone-800/10" data-theme="theme-light" style="background: #ffffff; color: #333333;">淺色</button>
+                        <button class="theme-btn py-2.5 text-sm rounded-xl font-medium border border-stone-800/10" data-theme="theme-dark" style="background: #1e1e1e; color: #cccccc;">深色</button>
+                        <button class="theme-btn py-2.5 text-sm rounded-xl font-medium border border-stone-800/10" data-theme="theme-green" style="background: #e1eedf; color: #2d4b2d;">護眼綠</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-medium text-stone-500">便簽不透明度</label>
+                    <div class="flex items-center gap-4">
+                        <input type="range" id="opacity-slider" min="30" max="100" value="85" class="flex-1 accent-amber-700 cursor-pointer">
+                        <span id="opacity-value" class="text-sm font-mono min-w-[36px]">85%</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3 border-t border-stone-800/10 pt-5">
+                    <label class="flex items-center justify-between gap-4 text-xs font-medium text-stone-500">
+                        <span>API 回复</span>
+                        <input type="checkbox" id="api-enabled" class="accent-amber-700 cursor-pointer">
+                    </label>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-medium text-stone-500">API Key</label>
+                        <input id="api-key-input" type="password" autocomplete="off" placeholder="sk-..."
+                            class="w-full bg-stone-800/5 border border-stone-800/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-600/50">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-medium text-stone-500">Base URL</label>
+                        <input id="api-base-url-input" type="text" autocomplete="off" value="https://api.deepseek.com/v1"
+                            class="w-full bg-stone-800/5 border border-stone-800/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-600/50">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-medium text-stone-500">模型</label>
+                        <input id="api-model-input" type="text" autocomplete="off" value="deepseek-chat"
+                            class="w-full bg-stone-800/5 border border-stone-800/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-600/50">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

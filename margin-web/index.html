@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Margin Web Reader</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="reader-toolbar">
+            <div class="brand">
+                <span class="brand-mark">M</span>
+                <div>
+                    <h1>Margin</h1>
+                    <p id="book-title">未导入书籍</p>
+                </div>
+            </div>
+
+            <div class="toolbar-actions">
+                <label class="file-button">
+                    导入书籍
+                    <input id="book-file" type="file" accept=".txt,.md,.html,.htm">
+                </label>
+                <button id="prev-page" type="button">上一页</button>
+                <button id="next-page" type="button">下一页</button>
+            </div>
+        </header>
+
+        <main class="layout">
+            <aside class="settings-panel" aria-label="阅读设置">
+                <section>
+                    <h2>阅读设置</h2>
+                    <label>
+                        背景样式
+                        <select id="theme-select">
+                            <option value="paper">护眼纸张</option>
+                            <option value="warm">暖黄浅色</option>
+                            <option value="green">护眼绿色</option>
+                            <option value="dark">深色夜读</option>
+                        </select>
+                    </label>
+                    <label>
+                        字体
+                        <select id="font-family">
+                            <option value="system">系统默认</option>
+                            <option value="serif">宋体/衬线</option>
+                            <option value="kai">楷体</option>
+                            <option value="hei">黑体</option>
+                        </select>
+                    </label>
+                    <label>
+                        字体颜色
+                        <input id="text-color" type="color" value="#3a2d1d">
+                    </label>
+                    <label>
+                        字体大小 <span id="font-size-value">18px</span>
+                        <input id="font-size" type="range" min="14" max="28" value="18">
+                    </label>
+                    <label>
+                        行间距 <span id="line-height-value">1.9</span>
+                        <input id="line-height" type="range" min="1.4" max="2.6" step="0.1" value="1.9">
+                    </label>
+                </section>
+
+                <section>
+                    <h2>翻页</h2>
+                    <p class="hint">可用 ← / → 或 PageUp / PageDown 快捷键翻页。</p>
+                    <div class="page-status">
+                        <span id="page-current">1</span>
+                        <span>/</span>
+                        <span id="page-total">1</span>
+                    </div>
+                </section>
+            </aside>
+
+            <section class="reader-frame">
+                <article id="reader-content" class="reader-content" tabindex="0">
+                    <h2>欢迎来到 Margin</h2>
+                    <p>请点击右上角“导入书籍”，选择一个 TXT、Markdown 或 HTML 文件开始阅读。</p>
+                    <p>选中阅读区里超过 5 个字的句子后，当前阶段会弹出模拟提示。后续再接入 Python 后端时，可以把这里替换成真实 API 调用。</p>
+                </article>
+            </section>
+        </main>
+    </div>
+
+    <script src="./script.js"></script>
+</body>
+</html>
