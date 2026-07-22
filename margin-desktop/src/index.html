@@ -29,7 +29,7 @@
 
             <div class="flex-1 px-8 py-2 overflow-y-auto space-y-4 max-h-[calc(80vh-140px)]">
                 <div id="current-quote-box" class="pl-3.5 border-l-2 border-amber-600/60 text-sm text-stone-600/80 leading-relaxed select-text italic">
-                    林黛玉聽了，不覺又喜又驚。
+                    Select text in the reader first.
                 </div>
 
                 <div class="flex justify-start">
@@ -110,6 +110,19 @@
                         <span>API 回复</span>
                         <input type="checkbox" id="api-enabled" class="accent-amber-700 cursor-pointer">
                     </label>
+                    <label class="flex items-center justify-between gap-4 text-xs font-medium text-stone-500">
+                        <span>&#38271;&#22238;&#31572;</span>
+                        <input type="checkbox" id="ai-long-answer" class="accent-amber-700 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between gap-4 text-xs font-medium text-stone-500">
+                        <span>&#23398;&#26415;&#22238;&#31572;</span>
+                        <input type="checkbox" id="ai-academic-answer" class="accent-amber-700 cursor-pointer">
+                    </label>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-medium text-stone-500">AI &#22238;&#22797;&#39118;&#26684;</label>
+                        <input id="ai-style-input" type="text" autocomplete="off" value="&#40664;&#35748;" placeholder="&#40664;&#35748;"
+                            class="w-full bg-stone-800/5 border border-stone-800/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-600/50">
+                    </div>
                     <div class="flex flex-col gap-2">
                         <label class="text-xs font-medium text-stone-500">API Key</label>
                         <input id="api-key-input" type="password" autocomplete="off" placeholder="sk-..."

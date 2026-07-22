@@ -4,9 +4,9 @@
 
 // 劃詞上下文
 let readingContext = {
-    book_name: "红楼梦",
-    chapter: "第7章",
-    selected_text: "林黛玉听了，不觉又喜又惊。"
+    book_name: "No book selected",
+    chapter: "No chapter selected",
+    selected_text: "Select text in the reader first."
 };
 
 // V2 核心狀態管理
@@ -40,6 +40,10 @@ const apiEnabledEl = document.getElementById('api-enabled');
 const apiKeyInput = document.getElementById('api-key-input');
 const apiBaseUrlInput = document.getElementById('api-base-url-input');
 const apiModelInput = document.getElementById('api-model-input');
+const aiLongAnswerEl = document.getElementById('ai-long-answer');
+const aiAcademicAnswerEl = document.getElementById('ai-academic-answer');
+const aiStyleInput = document.getElementById('ai-style-input');
+let floatingContextMenu = null;
 
 // V2 創建或獲取獨立懸浮按鈕（僅在折疊時顯示）
 let floatingTrigger = document.getElementById('margin-floating-trigger');
@@ -82,6 +86,8 @@ let resizeStartX = 0;
 let resizeStartWidth = 0;
 let resizeStartY = 0;
 let resizeStartHeight = 0;
+let resizeStartOuterPosition = null;
+let pendingResizeFrame = null;
 let activeResizeDir = '';
 let floatingPressTimer = null;
 let floatingPressStartX = 0;
@@ -89,6 +95,164 @@ let floatingPressStartY = 0;
 let isFloatingDragging = false;
 let activeTheme = 'theme-parchment';
 let activeOpacity = 0.85;
+let activeQuoteContext = null;
+let latestSelectionEventKey = '';
+let quoteClearBar = null;
+
+
+
+
+
+async function hideToTaskbar() {
+    setCollapseState(true);
+    const tauriWindow = getCurrentTauriWindow();
+    if (tauriWindow?.minimize) {
+        await tauriWindow.minimize();
+    }
+}
+
+function ensureFloatingContextMenu() {
+    if (floatingContextMenu) return floatingContextMenu;
+    floatingContextMenu = document.createElement('div');
+    floatingContextMenu.id = 'floating-context-menu';
+    floatingContextMenu.innerHTML = `
+        <button type="button" data-action="hide">Hide to taskbar</button>
+        <button type="button" data-action="quit">Quit</button>
+    `;
+    document.body.appendChild(floatingContextMenu);
+    floatingContextMenu.addEventListener('click', async event => {
+        const action = event.target?.dataset?.action;
+        hideFloatingContextMenu();
+        if (action === 'hide') {
+            await hideToTaskbar();
+        }
+        if (action === 'quit') {
+            const tauriWindow = getCurrentTauriWindow();
+            if (tauriWindow?.close) await tauriWindow.close();
+            else window.close();
+        }
+    });
+    return floatingContextMenu;
+}
+
+function showFloatingContextMenu(x, y) {
+    const menu = ensureFloatingContextMenu();
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.classList.add('visible');
+}
+
+function hideFloatingContextMenu() {
+    if (floatingContextMenu) floatingContextMenu.classList.remove('visible');
+}
+
+function getTauriInvoke() {
+    return window.__TAURI__?.core?.invoke || window.__TAURI__?.tauri?.invoke || window.__TAURI__?.invoke || null;
+}
+
+function getTauriListen() {
+    return window.__TAURI__?.event?.listen || null;
+}
+
+async function invokeTauriCommand(command, payload) {
+    const invoke = getTauriInvoke();
+    if (!invoke) throw new Error('Tauri invoke is unavailable.');
+    return await invoke(command, payload ? { payload } : undefined);
+}
+
+async function listenTauriEvent(eventName, handler) {
+    const listen = getTauriListen();
+    if (!listen) return null;
+    return await listen(eventName, event => handler(event.payload));
+}
+
+function normalizeQuotePayload(payload, fallbackText = '') {
+    if (!payload) return null;
+    const startOffset = Number(payload.start_offset ?? payload.startOffset);
+    const endOffset = Number(payload.end_offset ?? payload.endOffset);
+    return {
+        quote_id: payload.quote_id || payload.quoteId || `quote-${Date.now()}`,
+        book_id: payload.book_id || payload.bookId || null,
+        chapter_id: payload.chapter_id || payload.chapterId || null,
+        book_name: payload.book_name || payload.bookName || 'No book selected',
+        chapter_name: payload.chapter_name || payload.chapterName || 'No chapter selected',
+        quote_text: payload.quote_text || payload.quoteText || fallbackText || '',
+        start_offset: Number.isInteger(startOffset) ? startOffset : null,
+        end_offset: Number.isInteger(endOffset) ? endOffset : null
+    };
+}
+
+function canUseBackendQuoteAnalysis() {
+    return Boolean(
+        activeQuoteContext?.quote_text &&
+        activeQuoteContext?.book_id &&
+        activeQuoteContext?.chapter_id &&
+        Number.isInteger(activeQuoteContext?.start_offset) &&
+        Number.isInteger(activeQuoteContext?.end_offset) &&
+        activeQuoteContext.end_offset > activeQuoteContext.start_offset
+    );
+}
+
+async function streamBackendQuoteReply(message, onChunk) {
+    if (!canUseBackendQuoteAnalysis()) {
+        throw new Error('No spoiler-safe quote context is available.');
+    }
+    const settings = getApiSettings();
+    const quoteId = activeQuoteContext.quote_id;
+    let unlisten = null;
+
+    await new Promise(async (resolve, reject) => {
+        unlisten = await listenTauriEvent('ai://quote-stream', payload => {
+            if (!payload || payload.quote_id !== quoteId) return;
+            if (payload.event === 'delta' && payload.delta) onChunk(payload.delta);
+            if (payload.event === 'done') resolve();
+            if (payload.event === 'error') reject(new Error(payload.error || 'AI stream failed.'));
+        });
+
+        try {
+            await invokeTauriCommand('analyze_quote_stream', {
+                quote_id: quoteId,
+                book_id: activeQuoteContext.book_id,
+                chapter_id: activeQuoteContext.chapter_id,
+                quote_text: activeQuoteContext.quote_text,
+                start_offset: activeQuoteContext.start_offset,
+                end_offset: activeQuoteContext.end_offset,
+                user_message: message,
+                api_enabled: settings.enabled,
+                api_key: settings.apiKey,
+                api_base_url: settings.baseUrl,
+                api_model: settings.model,
+                ai_long_answer: settings.longAnswer,
+                ai_academic_answer: settings.academicAnswer,
+                ai_reply_style: settings.replyStyle,
+                conversation_history: chatHistory.slice(0, -1).map(item => ({
+                    role: item.role,
+                    content: item.content
+                }))
+            });
+        } catch (error) {
+            reject(error);
+        }
+    }).finally(() => {
+        if (typeof unlisten === 'function') unlisten();
+    });
+}
+
+async function setupSelectionSyncListener() {
+    await listenTauriEvent('margin://selection-changed', payload => {
+        if (!payload?.quote_text) return;
+        const eventKey = payload.quote_id || `${payload.quote_text}-${payload.start_offset}-${payload.end_offset}`;
+        if (eventKey === latestSelectionEventKey) return;
+        latestSelectionEventKey = eventKey;
+        window.triggerNewSelection(payload.quote_text, payload.book_name, payload.chapter_name, payload);
+    });
+}
+
+async function setupFloatingNativeMenuListener() {
+    await listenTauriEvent('margin://floating-menu-action', action => {
+        if (action === 'hide_to_taskbar') hideToTaskbar();
+    });
+}
 
 function loadUserWindowSize() {
     try {
@@ -139,6 +303,11 @@ function createLogicalSize(width, height) {
     return LogicalSize ? new LogicalSize(width, height) : { width, height };
 }
 
+function createLogicalPosition(x, y) {
+    const LogicalPosition = window.__TAURI__?.dpi?.LogicalPosition || window.__TAURI__?.window?.LogicalPosition;
+    return LogicalPosition ? new LogicalPosition(x, y) : { x, y };
+}
+
 function getExpandedWindowWidth() {
     return userWindowSize.width;
 }
@@ -171,7 +340,10 @@ function getApiSettings() {
         enabled: localStorage.getItem('margin-api-enabled') === 'true',
         apiKey: localStorage.getItem('margin-api-key') || '',
         baseUrl: localStorage.getItem('margin-api-base-url') || 'https://api.deepseek.com/v1',
-        model: localStorage.getItem('margin-api-model') || 'deepseek-chat'
+        model: localStorage.getItem('margin-api-model') || 'deepseek-chat',
+        longAnswer: localStorage.getItem('margin-ai-long-answer') === 'true',
+        academicAnswer: localStorage.getItem('margin-ai-academic-answer') === 'true',
+        replyStyle: localStorage.getItem('margin-ai-reply-style') || '\u9ed8\u8ba4'
     };
 }
 
@@ -180,6 +352,9 @@ function saveApiSettings() {
     if (apiKeyInput) localStorage.setItem('margin-api-key', apiKeyInput.value.trim());
     if (apiBaseUrlInput) localStorage.setItem('margin-api-base-url', apiBaseUrlInput.value.trim() || 'https://api.deepseek.com/v1');
     if (apiModelInput) localStorage.setItem('margin-api-model', apiModelInput.value.trim() || 'deepseek-chat');
+    if (aiLongAnswerEl) localStorage.setItem('margin-ai-long-answer', aiLongAnswerEl.checked ? 'true' : 'false');
+    if (aiAcademicAnswerEl) localStorage.setItem('margin-ai-academic-answer', aiAcademicAnswerEl.checked ? 'true' : 'false');
+    if (aiStyleInput) localStorage.setItem('margin-ai-reply-style', aiStyleInput.value.trim() || '\u9ed8\u8ba4');
 }
 
 function buildMarginMessages({ bookName, chapterName, selectedText, userMessage, history = [], persona = 'default' }) {
@@ -298,6 +473,21 @@ function setCollapseState(collapse) {
 }
 
 if (btnFold) btnFold.addEventListener('click', () => setCollapseState(true));
+floatingTrigger.addEventListener('contextmenu', async event => {
+    event.preventDefault();
+    window.clearTimeout(floatingPressTimer);
+    try {
+        await invokeTauriCommand('show_floating_native_menu');
+    } catch (error) {
+        console.warn('Native floating menu failed, using fallback.', error);
+        showFloatingContextMenu(event.clientX, event.clientY);
+    }
+});
+
+document.addEventListener('pointerdown', event => {
+    if (!event.target.closest('#floating-context-menu, #margin-floating-trigger')) hideFloatingContextMenu();
+});
+
 floatingTrigger.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     isFloatingDragging = false;
@@ -406,26 +596,20 @@ async function submitAnnotation() {
     enforceAdaptiveHeight();
 
     try {
-        const messages = buildMarginMessages({
-            bookName: readingContext.book_name,
-            chapterName: readingContext.chapter,
-            selectedText: isNewSelection ? readingContext.selected_text : '',
-            userMessage: message,
-            history: isNewSelection ? [] : chatHistory.slice(0, -1)
-        });
         isNewSelection = false;
 
         aiResponseEl.innerText = userQuestionPrefix;
-        let fullAIResponse = ""; 
+        let fullAIResponse = "";
+        const onChunk = (chunk) => {
+            aiResponseEl.innerText += chunk;
+            fullAIResponse += chunk;
+            enforceAdaptiveHeight();
+        };
 
-        await streamConfiguredApiReply({
-            messages,
-            onChunk: (chunk) => {
-                aiResponseEl.innerText += chunk;
-                fullAIResponse += chunk;
-                enforceAdaptiveHeight();
-            }
-        });
+        if (!canUseBackendQuoteAnalysis()) {
+            throw new Error('Select text in the reader first; no spoiler-safe book context is available.');
+        }
+        await streamBackendQuoteReply(message, onChunk);
 
         chatHistory.push({ role: "assistant", content: fullAIResponse });
         updateHistoryUI();
@@ -445,17 +629,19 @@ userInputEl.addEventListener('keydown', (e) => {
 });
 
 // 全局開放 Hook 接口
-window.triggerNewSelection = function(newText, bookName = "红楼梦", chapterName = "第7章") {
-    readingContext.book_name = bookName;
-    readingContext.chapter = chapterName;
-    readingContext.selected_text = newText;
+window.triggerNewSelection = function(newText, bookName = "No book selected", chapterName = "No chapter selected", quotePayload = null) {
+    const normalizedQuote = normalizeQuotePayload(quotePayload, newText);
+    readingContext.book_name = normalizedQuote?.book_name || bookName;
+    readingContext.chapter = normalizedQuote?.chapter_name || chapterName;
+    readingContext.selected_text = normalizedQuote?.quote_text || newText;
+    activeQuoteContext = normalizedQuote;
     
     isNewSelection = true; 
     chatHistory = []; 
     isHistoryVisible = false;
     
     const quoteBox = document.getElementById('current-quote-box');
-    if (quoteBox) quoteBox.innerText = newText;
+    if (quoteBox) quoteBox.innerText = readingContext.selected_text;
     
     if (historyContainerEl) historyContainerEl.classList.add('hidden');
     if (historyFlowEl) historyFlowEl.classList.add('hidden');
@@ -469,6 +655,60 @@ window.triggerNewSelection = function(newText, bookName = "红楼梦", chapterNa
         enforceAdaptiveHeight();
     }
 };
+
+function clearSelectionNow() {
+    activeQuoteContext = null;
+    readingContext = {
+        book_name: "No book selected",
+        chapter: "No chapter selected",
+        selected_text: "Select text in the reader first."
+    };
+    isNewSelection = true;
+    chatHistory = [];
+    isHistoryVisible = false;
+    latestSelectionEventKey = '';
+
+    const quoteBox = document.getElementById('current-quote-box');
+    if (quoteBox) quoteBox.innerText = readingContext.selected_text;
+    if (historyContainerEl) historyContainerEl.classList.add('hidden');
+    if (historyFlowEl) historyFlowEl.classList.add('hidden');
+    updateHistoryUI();
+    aiResponseEl.innerText = "Selection cleared. Select text in the reader first.";
+    enforceAdaptiveHeight();
+}
+
+function ensureQuoteClearBar() {
+    if (quoteClearBar) return quoteClearBar;
+    quoteClearBar = document.createElement('div');
+    quoteClearBar.id = 'quote-clear-bar';
+    quoteClearBar.innerHTML = `
+        <span>清空当前选中文本？</span>
+        <button type="button" data-clear-quote>清空</button>
+        <button type="button" data-cancel-clear>取消</button>`;
+    document.body.appendChild(quoteClearBar);
+    quoteClearBar.addEventListener('click', event => {
+        if (event.target.closest('[data-clear-quote]')) {
+            clearSelectionNow();
+            hideQuoteClearBar();
+        }
+        if (event.target.closest('[data-cancel-clear]')) hideQuoteClearBar();
+    });
+    return quoteClearBar;
+}
+
+function hideQuoteClearBar() {
+    if (quoteClearBar) quoteClearBar.classList.remove('visible');
+}
+
+function clearCurrentSelectionContext() {
+    if (!activeQuoteContext && readingContext.selected_text === "Select text in the reader first.") return;
+    const bar = ensureQuoteClearBar();
+    bar.classList.add('visible');
+}
+
+const currentQuoteBox = document.getElementById('current-quote-box');
+if (currentQuoteBox) currentQuoteBox.addEventListener('dblclick', clearCurrentSelectionContext);
+
 
 // ==========================================================================
 // 三、字體系統與偏好控制器 (實時全局預覽修復)
@@ -531,7 +771,7 @@ if (opacitySlider) {
     });
 }
 
-[apiEnabledEl, apiKeyInput, apiBaseUrlInput, apiModelInput].forEach(el => {
+[apiEnabledEl, apiKeyInput, apiBaseUrlInput, apiModelInput, aiLongAnswerEl, aiAcademicAnswerEl, aiStyleInput].forEach(el => {
     if (!el) return;
     const eventName = el.type === 'checkbox' ? 'change' : 'input';
     el.addEventListener(eventName, saveApiSettings);
@@ -550,6 +790,8 @@ resizeHandles.forEach(handle => {
         resizeStartY = e.clientY;
         resizeStartWidth = userWindowSize.width;
         resizeStartHeight = userWindowSize.height;
+        resizeStartOuterPosition = null;
+        getCurrentTauriWindow()?.outerPosition?.().then(pos => { resizeStartOuterPosition = pos; }).catch(() => {});
         document.body.style.cursor = getComputedStyle(handle).cursor;
         document.body.style.userSelect = 'none'; 
         e.preventDefault();
@@ -572,7 +814,20 @@ window.addEventListener('mousemove', (e) => {
     saveUserWindowSize(newWidth, newHeight);
     marginWindow.style.width = `${userWindowSize.width}px`;
     marginWindow.style.height = `${userWindowSize.height}px`;
-    setTauriWindowSize(userWindowSize.width, userWindowSize.height).catch(console.error);
+    if (!pendingResizeFrame) {
+        pendingResizeFrame = requestAnimationFrame(() => {
+            pendingResizeFrame = null;
+            setTauriWindowSize(userWindowSize.width, userWindowSize.height).then(async () => {
+                const tauriWindow = getCurrentTauriWindow();
+                if (!tauriWindow?.setPosition || !resizeStartOuterPosition) return;
+                let nextX = resizeStartOuterPosition.x;
+                let nextY = resizeStartOuterPosition.y;
+                if (activeResizeDir.includes('w')) nextX = resizeStartOuterPosition.x + (resizeStartWidth - userWindowSize.width);
+                if (activeResizeDir.includes('n')) nextY = resizeStartOuterPosition.y + (resizeStartHeight - userWindowSize.height);
+                await tauriWindow.setPosition(createLogicalPosition(nextX, nextY));
+            }).catch(console.error);
+        });
+    }
     e.preventDefault();
 });
 
@@ -589,6 +844,8 @@ window.addEventListener('mouseup', () => {
 
 // 頁面初次載入數據恢復
 window.addEventListener('DOMContentLoaded', () => {
+    setupSelectionSyncListener();
+    setupFloatingNativeMenuListener();
     const legacyWidth = Number.parseInt(localStorage.getItem('margin-window-width') || '', 10);
     if (legacyWidth && !localStorage.getItem('margin-window-size')) {
         saveUserWindowSize(legacyWidth, defaultWindowHeight);
@@ -623,6 +880,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (apiKeyInput) apiKeyInput.value = apiSettings.apiKey;
     if (apiBaseUrlInput) apiBaseUrlInput.value = apiSettings.baseUrl;
     if (apiModelInput) apiModelInput.value = apiSettings.model;
+    if (aiLongAnswerEl) aiLongAnswerEl.checked = apiSettings.longAnswer;
+    if (aiAcademicAnswerEl) aiAcademicAnswerEl.checked = apiSettings.academicAnswer;
+    if (aiStyleInput) aiStyleInput.value = apiSettings.replyStyle;
 
     // 恢復折疊狀態
     const memoCollapsed = localStorage.getItem('margin-collapsed');

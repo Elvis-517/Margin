@@ -3,87 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Margin Web Reader</title>
+    <title>Margin Reader</title>
     <link rel="stylesheet" href="./style.css">
 </head>
-<body>
-    <div class="app-shell">
-        <header class="reader-toolbar">
-            <div class="brand">
-                <span class="brand-mark">M</span>
-                <div>
-                    <h1>Margin</h1>
-                    <p id="book-title">未导入书籍</p>
+<body class="theme-global-light">
+    <nav class="navbar" id="global-navbar">
+        <div class="nav-item active" id="nav-home" onclick="switchTab('home')">主页</div>
+        <div class="nav-item" id="nav-duration" onclick="switchTab('duration')">读书时长</div>
+        <div class="nav-item" id="nav-mine" onclick="switchTab('mine')">我的</div>
+    </nav>
+
+    <nav class="navbar hidden" id="reader-navbar">
+        <div class="reader-nav-left">
+            <button class="nav-icon-btn" onclick="closeBook()" title="返回书架" aria-label="返回书架">&#8592;</button>
+        </div>
+        <div class="reader-nav-center">
+            <button id="reader-panel-toggle" class="nav-icon-btn panel-nav-toggle" onclick="toggleLeftPanel()" title="展开/收起侧边设置" aria-label="展开/收起侧边设置">&#9776;</button>
+            <button class="page-nav-btn" onclick="goToRelativePage(-1)" title="上一页">&#8249;</button>
+            <span id="page-info">第 1 / 1 页</span>
+            <button class="page-nav-btn" onclick="goToRelativePage(1)" title="下一页">&#8250;</button>
+            <div class="progress-container">
+                <input type="range" id="read-progress-bar" min="0" max="100" value="0" oninput="onProgressSlider(this.value)">
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="page-jump-box">
+                <input type="number" id="direct-page-input" min="1" value="1" placeholder="页码">
+                <button onclick="jumpToInputPage()">跳转</button>
+            </div>
+        </div>
+        <div class="reader-nav-right" id="top-quick-tools">
+            <button class="tool-btn" onclick="changeFontSize(-2)" title="减小字号">A-</button>
+            <button class="tool-btn" onclick="changeFontSize(2)" title="增大字号">A+</button>
+        </div>
+    </nav>
+
+    <div class="app-container">
+        <section id="tab-home" class="tab-view">
+            <div class="book-grid" id="book-grid">
+                <div class="book-card" onclick="openBook(this)" data-content="欢迎体验 Margin Reader。\n\n这是一本用于测试导入、阅读、划线和随伴阅读同步的说明书。\n\n你可以在首页导入 TXT、Markdown、HTML、DOC、DOCX 或 EPUB 文件。进入阅读页后选中超过 5 个字的内容，会同步到 Tauri 随伴阅读窗口，也可以在网页内添加高光或 note。">
+                    <div class="book-cover"><span class="cover-text">README<br>说明书</span></div>
+                    <div class="book-title">使用说明书</div>
+                    <div class="book-author">Margin 团队</div>
                 </div>
-            </div>
-
-            <div class="toolbar-actions">
-                <label class="file-button">
-                    导入书籍
-                    <input id="book-file" type="file" accept=".txt,.md,.html,.htm">
+                <label for="file-uploader" class="book-card import-book-card">
+                    <div class="book-cover import-cover"><span class="cover-text">导入书籍</span></div>
+                    <div class="book-title">导入书籍</div>
+                    <div class="book-author">TXT / MD / HTML / DOC / EPUB</div>
+                    <input type="file" id="file-uploader" accept=".txt,.md,.markdown,.html,.htm,.doc,.docx,.epub">
                 </label>
-                <button id="prev-page" type="button">上一页</button>
-                <button id="next-page" type="button">下一页</button>
             </div>
-        </header>
+            <div id="category-board" class="category-board"></div>
+        </section>
 
-        <main class="layout">
-            <aside class="settings-panel" aria-label="阅读设置">
-                <section>
-                    <h2>阅读设置</h2>
-                    <label>
-                        背景样式
-                        <select id="theme-select">
-                            <option value="paper">护眼纸张</option>
-                            <option value="warm">暖黄浅色</option>
-                            <option value="green">护眼绿色</option>
-                            <option value="dark">深色夜读</option>
-                        </select>
-                    </label>
-                    <label>
-                        字体
-                        <select id="font-family">
-                            <option value="system">系统默认</option>
-                            <option value="serif">宋体/衬线</option>
-                            <option value="kai">楷体</option>
-                            <option value="hei">黑体</option>
-                        </select>
-                    </label>
-                    <label>
-                        字体颜色
-                        <input id="text-color" type="color" value="#3a2d1d">
-                    </label>
-                    <label>
-                        字体大小 <span id="font-size-value">18px</span>
-                        <input id="font-size" type="range" min="14" max="28" value="18">
-                    </label>
-                    <label>
-                        行间距 <span id="line-height-value">1.9</span>
-                        <input id="line-height" type="range" min="1.4" max="2.6" step="0.1" value="1.9">
-                    </label>
-                </section>
+        <section id="tab-duration" class="tab-view hidden"><div class="empty-state">读书时长统计功能正在开发中...</div></section>
 
-                <section>
-                    <h2>翻页</h2>
-                    <p class="hint">可用 ← / → 或 PageUp / PageDown 快捷键翻页。</p>
-                    <div class="page-status">
-                        <span id="page-current">1</span>
-                        <span>/</span>
-                        <span id="page-total">1</span>
+        <section id="tab-mine" class="tab-view hidden">
+            <div class="profile-settings">
+                <h3>个性化配置中心</h3>
+                <p class="subtitle">全局外观与阅读偏好会即时生效。</p>
+                <hr>
+                <div class="mine-row">
+                    <span>全局外观：</span>
+                    <button class="action-btn" onclick="setGlobalTheme('light')">切换全局亮色</button>
+                    <button class="action-btn" onclick="setGlobalTheme('dark')">切换全局暗色</button>
+                </div>
+                <section id="notes-summary" class="notes-summary"></section>
+                <section id="trash-shelf" class="trash-shelf hidden"></section>
+            </div>
+        </section>
+
+        <div class="reader-wrapper hidden" id="reader-view">
+            <aside class="settings-sidebar" id="settings-panel">
+                <div class="settings-body">
+                    <h3 class="panel-title">阅读设置</h3>
+                    <div class="setting-row">
+                        <label>推荐主题模式</label>
+                        <div class="theme-options">
+                            <div class="theme-dot t-light active" onclick="changeReaderTheme('light')" title="经典亮色"></div>
+                            <div class="theme-dot t-dark" onclick="changeReaderTheme('dark')" title="深色夜读"></div>
+                            <div class="theme-dot t-sepia" onclick="changeReaderTheme('sepia')" title="复古纸张"></div>
+                        </div>
                     </div>
-                </section>
+                    <div class="setting-row custom-color-area">
+                        <label>自定义颜色</label>
+                        <div class="custom-picker-group">
+                            <div class="picker-item"><span>背景:</span><input type="color" id="custom-bg-picker" value="#fcfaf2" oninput="applyCustomColors()"></div>
+                            <div class="picker-item"><span>文字:</span><input type="color" id="custom-text-picker" value="#2c3e50" oninput="applyCustomColors()"></div>
+                        </div>
+                    </div>
+                    <div class="setting-row custom-color-area">
+                        <label>标注颜色</label>
+                        <div class="custom-picker-group">
+                            <div class="picker-item"><span>高光:</span><input type="color" id="highlight-color-picker" value="#facc15" oninput="changeAnnotationColor('highlight', this.value)"></div>
+                            <div class="picker-item"><span>note:</span><input type="color" id="note-color-picker" value="#60a5fa" oninput="changeAnnotationColor('note', this.value)"></div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>字体样式</label>
+                        <select id="font-style-select" onchange="changeFontStyle(this.value)">
+                            <option value='system-ui, -apple-system, sans-serif' style='font-family: system-ui, -apple-system, sans-serif;'>系统默认：阅读预览文字</option>
+                            <option value='SimSun, NSimSun, "Songti SC", "Noto Serif CJK SC", serif' style='font-family: SimSun, NSimSun, "Songti SC", "Noto Serif CJK SC", serif;'>宋体：山有木兮木有枝</option>
+                            <option value='Georgia, "Times New Roman", serif' style='font-family: Georgia, "Times New Roman", serif;'>西文衬线：Reading Preview</option>
+                            <option value='monospace' style='font-family: monospace;'>等宽字体：Preview 123</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>字体大小 (<span id="font-size-val">18</span>px)</label>
+                        <div class="dual-control-group"><button class="step-btn" onclick="changeFontSize(-2)">-</button><input type="range" id="font-size-slider" min="12" max="38" value="18" oninput="onFontSizeSlider(this.value)"><button class="step-btn" onclick="changeFontSize(2)">+</button></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>行间距 (<span id="line-height-val">1.8</span>)</label>
+                        <div class="dual-control-group"><button class="step-btn" onclick="changeLineHeight(-0.2)">-</button><input type="range" id="line-height-slider" min="12" max="32" value="18" step="2" oninput="onLineHeightSlider(this.value)"><button class="step-btn" onclick="changeLineHeight(0.2)">+</button></div>
+                    </div>
+                    <div class="setting-row">
+                        <label>翻页方式</label>
+                        <select id="page-mode-select" onchange="changePageMode(this.value)"><option value="paged">左右翻页</option><option value="scroll">滑动翻页</option></select>
+                    </div>
+                    <button class="exit-reader-btn" onclick="closeBook()">返回主页书架</button>
+                </div>
+                <button class="panel-toggle" onclick="toggleLeftPanel()">&#9664;</button>
             </aside>
-
-            <section class="reader-frame">
-                <article id="reader-content" class="reader-content" tabindex="0">
-                    <h2>欢迎来到 Margin</h2>
-                    <p>请点击右上角“导入书籍”，选择一个 TXT、Markdown 或 HTML 文件开始阅读。</p>
-                    <p>选中阅读区里超过 5 个字的句子后，当前阶段会弹出模拟提示。后续再接入 Python 后端时，可以把这里替换成真实 API 调用。</p>
-                </article>
-            </section>
-        </main>
+            <div id="selection-action-bar" class="selection-action-bar hidden"><button type="button" data-action="highlight">高光</button><button type="button" data-action="note">note</button><button type="button" data-action="remove">清除高光/笔记</button></div>
+            <main class="reader-main" id="reader-scroll-container"><h1 class="reader-book-title" id="active-book-title">书名</h1><article class="reader-content" id="reader-text-area"></article></main>
+        </div>
     </div>
-
     <script src="./script.js"></script>
 </body>
 </html>
