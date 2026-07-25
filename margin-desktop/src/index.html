@@ -36,6 +36,7 @@
                     <button id="btn-toggle-history" class="text-xs font-medium opacity-40 hover:opacity-80 transition-opacity select-none cursor-pointer">
                         📜 展開歷史批注 (0)
                     </button>
+                    <button id="btn-clear-chat" class="text-xs font-medium opacity-40 hover:opacity-80 transition-opacity select-none cursor-pointer" title="&#28165;&#31354;&#23545;&#35805;">&#28165;&#31354;</button>
                 </div>
 
                 <div id="history-container" class="hidden">
@@ -117,6 +118,17 @@
                     <label class="flex items-center justify-between gap-4 text-xs font-medium text-stone-500">
                         <span>&#23398;&#26415;&#22238;&#31572;</span>
                         <input type="checkbox" id="ai-academic-answer" class="accent-amber-700 cursor-pointer">
+                    </label>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <label class="text-xs font-medium text-stone-500">&#21095;&#36879;&#31243;&#24230;</label>
+                            <span id="spoiler-level-value" class="text-xs font-mono opacity-60">0%</span>
+                        </div>
+                        <input type="range" id="spoiler-level-slider" min="0" max="100" value="0" class="w-full accent-amber-700 cursor-pointer">
+                    </div>
+                    <label class="flex items-center justify-between gap-4 text-xs font-medium text-stone-500">
+                        <span>&#25628;&#32034;&#24341;&#25806;&#27169;&#24335;</span>
+                        <input type="checkbox" id="ai-search-mode" class="accent-amber-700 cursor-pointer">
                     </label>
                     <div class="flex flex-col gap-2">
                         <label class="text-xs font-medium text-stone-500">AI &#22238;&#22797;&#39118;&#26684;</label>

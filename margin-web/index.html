@@ -19,6 +19,7 @@
         </div>
         <div class="reader-nav-center">
             <button id="reader-panel-toggle" class="nav-icon-btn panel-nav-toggle" onclick="toggleLeftPanel()" title="展开/收起侧边设置" aria-label="展开/收起侧边设置">&#9776;</button>
+            <button id="reader-toc-btn" class="nav-icon-btn" onclick="toggleTocPanel()" title="目录" aria-label="目录">&#9776;</button>
             <button class="page-nav-btn" onclick="goToRelativePage(-1)" title="上一页">&#8249;</button>
             <span id="page-info">第 1 / 1 页</span>
             <button class="page-nav-btn" onclick="goToRelativePage(1)" title="下一页">&#8250;</button>
@@ -125,6 +126,7 @@
             </aside>
             <div id="selection-action-bar" class="selection-action-bar hidden"><button type="button" data-action="highlight">高光</button><button type="button" data-action="note">note</button><button type="button" data-action="remove">清除高光/笔记</button></div>
             <main class="reader-main" id="reader-scroll-container"><h1 class="reader-book-title" id="active-book-title">书名</h1><article class="reader-content" id="reader-text-area"></article></main>
+            <aside id="reader-toc-panel" class="reader-toc-panel hidden"><div class="toc-head"><strong>目录</strong><button type="button" onclick="toggleTocPanel(false)" aria-label="关闭">&times;</button></div><div id="reader-toc-list" class="toc-list"></div></aside>
         </div>
     </div>
     <script src="./script.js"></script>

@@ -26,6 +26,7 @@ const userInputEl = document.getElementById('user-input');
 
 // 歷史組件 DOM
 const btnToggleHistory = document.getElementById('btn-toggle-history');
+const btnClearChat = document.getElementById('btn-clear-chat');
 const historyContainerEl = document.getElementById('history-container');
 const historyFlowEl = document.getElementById('history-flow');
 
@@ -42,6 +43,9 @@ const apiBaseUrlInput = document.getElementById('api-base-url-input');
 const apiModelInput = document.getElementById('api-model-input');
 const aiLongAnswerEl = document.getElementById('ai-long-answer');
 const aiAcademicAnswerEl = document.getElementById('ai-academic-answer');
+const spoilerLevelSlider = document.getElementById('spoiler-level-slider');
+const spoilerLevelValue = document.getElementById('spoiler-level-value');
+const aiSearchModeEl = document.getElementById('ai-search-mode');
 const aiStyleInput = document.getElementById('ai-style-input');
 let floatingContextMenu = null;
 
@@ -202,12 +206,27 @@ async function streamBackendQuoteReply(message, onChunk) {
     let unlisten = null;
 
     await new Promise(async (resolve, reject) => {
+        let settled = false;
+        const finish = (callback, value) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            callback(value);
+        };
+        const timeoutId = window.setTimeout(() => {
+            finish(reject, new Error('AI response timed out. Please check the API settings or try again.'));
+        }, 90000);
+
         unlisten = await listenTauriEvent('ai://quote-stream', payload => {
             if (!payload || payload.quote_id !== quoteId) return;
             if (payload.event === 'delta' && payload.delta) onChunk(payload.delta);
-            if (payload.event === 'done') resolve();
-            if (payload.event === 'error') reject(new Error(payload.error || 'AI stream failed.'));
+            if (payload.event === 'done') finish(resolve);
+            if (payload.event === 'error') finish(reject, new Error(payload.error || 'AI stream failed.'));
         });
+        if (!unlisten) {
+            finish(reject, new Error('Tauri AI stream listener is unavailable.'));
+            return;
+        }
 
         try {
             await invokeTauriCommand('analyze_quote_stream', {
@@ -225,13 +244,15 @@ async function streamBackendQuoteReply(message, onChunk) {
                 ai_long_answer: settings.longAnswer,
                 ai_academic_answer: settings.academicAnswer,
                 ai_reply_style: settings.replyStyle,
+                ai_spoiler_level: settings.spoilerLevel,
+                ai_search_mode: settings.searchMode,
                 conversation_history: chatHistory.slice(0, -1).map(item => ({
                     role: item.role,
                     content: item.content
                 }))
             });
         } catch (error) {
-            reject(error);
+            finish(reject, error);
         }
     }).finally(() => {
         if (typeof unlisten === 'function') unlisten();
@@ -335,6 +356,12 @@ function applyPanelBackground() {
     document.body.style.setProperty('--bg-alpha', activeOpacity.toFixed(2));
 }
 
+function normalizeSpoilerLevel(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 0;
+    return Math.min(100, Math.max(0, Math.round(numericValue)));
+}
+
 function getApiSettings() {
     return {
         enabled: localStorage.getItem('margin-api-enabled') === 'true',
@@ -343,6 +370,8 @@ function getApiSettings() {
         model: localStorage.getItem('margin-api-model') || 'deepseek-chat',
         longAnswer: localStorage.getItem('margin-ai-long-answer') === 'true',
         academicAnswer: localStorage.getItem('margin-ai-academic-answer') === 'true',
+        spoilerLevel: normalizeSpoilerLevel(localStorage.getItem('margin-ai-spoiler-level') || '0'),
+        searchMode: localStorage.getItem('margin-ai-search-mode') === 'true',
         replyStyle: localStorage.getItem('margin-ai-reply-style') || '\u9ed8\u8ba4'
     };
 }
@@ -354,6 +383,8 @@ function saveApiSettings() {
     if (apiModelInput) localStorage.setItem('margin-api-model', apiModelInput.value.trim() || 'deepseek-chat');
     if (aiLongAnswerEl) localStorage.setItem('margin-ai-long-answer', aiLongAnswerEl.checked ? 'true' : 'false');
     if (aiAcademicAnswerEl) localStorage.setItem('margin-ai-academic-answer', aiAcademicAnswerEl.checked ? 'true' : 'false');
+    if (spoilerLevelSlider) localStorage.setItem('margin-ai-spoiler-level', String(normalizeSpoilerLevel(spoilerLevelSlider.value)));
+    if (aiSearchModeEl) localStorage.setItem('margin-ai-search-mode', aiSearchModeEl.checked ? 'true' : 'false');
     if (aiStyleInput) localStorage.setItem('margin-ai-reply-style', aiStyleInput.value.trim() || '\u9ed8\u8ba4');
 }
 
@@ -636,9 +667,7 @@ window.triggerNewSelection = function(newText, bookName = "No book selected", ch
     readingContext.selected_text = normalizedQuote?.quote_text || newText;
     activeQuoteContext = normalizedQuote;
     
-    isNewSelection = true; 
-    chatHistory = []; 
-    isHistoryVisible = false;
+    isNewSelection = true;
     
     const quoteBox = document.getElementById('current-quote-box');
     if (quoteBox) quoteBox.innerText = readingContext.selected_text;
@@ -647,8 +676,7 @@ window.triggerNewSelection = function(newText, bookName = "No book selected", ch
     if (historyFlowEl) historyFlowEl.classList.add('hidden');
     updateHistoryUI();
     
-    aiResponseEl.innerText = "已變更選文錨點，寫下妳的新疑問...";
-    
+    aiResponseEl.innerText = "\u5df2\u5207\u6362\u9009\u6587\u951a\u70b9\uff0c\u5386\u53f2\u5bf9\u8bdd\u5df2\u4fdd\u7559\uff1b\u53ef\u4ee5\u7ee7\u7eed\u8ffd\u95ee\uff0c\u6216\u70b9\u6e05\u7a7a\u91cd\u5f00\u3002";
     if (isCollapsed) {
         setCollapseState(false);
     } else {
@@ -771,7 +799,7 @@ if (opacitySlider) {
     });
 }
 
-[apiEnabledEl, apiKeyInput, apiBaseUrlInput, apiModelInput, aiLongAnswerEl, aiAcademicAnswerEl, aiStyleInput].forEach(el => {
+[apiEnabledEl, apiKeyInput, apiBaseUrlInput, apiModelInput, aiLongAnswerEl, aiAcademicAnswerEl, spoilerLevelSlider, aiSearchModeEl, aiStyleInput].forEach(el => {
     if (!el) return;
     const eventName = el.type === 'checkbox' ? 'change' : 'input';
     el.addEventListener(eventName, saveApiSettings);
@@ -882,6 +910,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (apiModelInput) apiModelInput.value = apiSettings.model;
     if (aiLongAnswerEl) aiLongAnswerEl.checked = apiSettings.longAnswer;
     if (aiAcademicAnswerEl) aiAcademicAnswerEl.checked = apiSettings.academicAnswer;
+    if (spoilerLevelSlider) spoilerLevelSlider.value = apiSettings.spoilerLevel;
+    if (spoilerLevelValue) spoilerLevelValue.innerText = `${apiSettings.spoilerLevel}%`;
+    if (aiSearchModeEl) aiSearchModeEl.checked = apiSettings.searchMode;
     if (aiStyleInput) aiStyleInput.value = apiSettings.replyStyle;
 
     // 恢復折疊狀態

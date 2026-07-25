@@ -4,6 +4,7 @@ let totalPagesMock = 1;
 let currentPageMock = 1;
 let pageMode = 'paged';
 let activePageChunks = [];
+let activeChapterToc = [];
 let activeBookTitle = '';
 let pageScrollPositions = new Map();
 let scrollPageArmedDirection = null;
@@ -1538,6 +1539,7 @@ function openBook(bookElement) {
 
     readerTitle.innerText = activeBookTitle;
     activePageChunks = splitContentIntoChunks(content, contentMode);
+    activeChapterToc = buildChapterToc(activePageChunks);
     activeTauriBook = storedBook?.tauriBook || null;
     activeTauriBookPromise = ensureActiveBookRegistered(storedBook, contentMode);
     totalPagesMock = Math.max(activePageChunks.length, 1);
@@ -1545,6 +1547,7 @@ function openBook(bookElement) {
     pageScrollPositions = new Map();
     syncControlSliders();
     renderVirtualPages();
+    renderTocPanel();
 }
 
 function splitContentIntoChunks(content, mode = 'text') {
@@ -1648,6 +1651,7 @@ function renderVirtualPages(options = {}) {
     readerTextArea.innerHTML = html.join('');
     document.getElementById('reader-view').classList.toggle('scroll-page-mode', isScrollMode);
     updateMockPageUI();
+    renderTocPanel();
     requestAnimationFrame(() => {
         if (isScrollMode) {
             if (options.restoreScroll === false || options.scrollToCurrent) scrollToRenderedPage(currentPageMock);
@@ -1657,6 +1661,55 @@ function renderVirtualPages(options = {}) {
         const savedTop = pageScrollPositions.get(currentPageMock) || 0;
         readerScrollContainer.scrollTop = options.restoreScroll === false ? 0 : savedTop;
     });
+}
+
+function buildChapterToc(chunks) {
+    return chunks.map((chunk, index) => ({
+        page: index + 1,
+        title: extractChunkTitle(chunk, index)
+    }));
+}
+
+function extractChunkTitle(chunk, index) {
+    const template = document.createElement('template');
+    template.innerHTML = chunk || '';
+    const heading = template.content.querySelector('h1, h2, h3, .doc-title, [data-chapter-title]');
+    const headingText = heading?.textContent?.trim();
+    if (headingText) return headingText.slice(0, 80);
+
+    const firstBlock = Array.from(template.content.querySelectorAll('p, div, section, article'))
+        .map(node => node.textContent.trim())
+        .find(text => text.length > 0 && text.length <= 80);
+    return firstBlock || '第 ' + (index + 1) + ' 页';
+}
+
+function renderTocPanel() {
+    const list = document.getElementById('reader-toc-list');
+    if (!list) return;
+    if (!activeChapterToc.length) {
+        list.innerHTML = '<div class="toc-empty">暂无目录</div>';
+        return;
+    }
+    list.innerHTML = activeChapterToc.map(item => {
+        const activeClass = item.page === currentPageMock ? ' active' : '';
+        return '<button type="button" class="toc-item' + activeClass + '" data-page="' + item.page + '"><span>' + escapeHtml(item.title) + '</span><em>' + item.page + '</em></button>';
+    }).join('');
+    list.querySelectorAll('.toc-item').forEach(button => {
+        button.onclick = () => {
+            saveCurrentPageScroll();
+            currentPageMock = Math.max(1, Math.min(totalPagesMock, Number(button.dataset.page) || 1));
+            renderVirtualPages({ restoreScroll: false, scrollToCurrent: true });
+            toggleTocPanel(false);
+        };
+    });
+}
+
+function toggleTocPanel(force) {
+    const panel = document.getElementById('reader-toc-panel');
+    if (!panel) return;
+    const shouldOpen = typeof force === 'boolean' ? force : panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !shouldOpen);
+    if (shouldOpen) renderTocPanel();
 }
 
 function closeBook() {

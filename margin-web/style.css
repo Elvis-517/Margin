@@ -659,3 +659,77 @@ body, html {
     color: var(--book-title-color);
     font-style: normal;
 }
+
+
+.reader-toc-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 80;
+    width: min(320px, 86vw);
+    height: 100%;
+    background: var(--global-nav-bg);
+    border-left: 1px solid rgba(100, 116, 139, 0.16);
+    box-shadow: -18px 0 42px rgba(15, 23, 42, 0.08);
+    color: var(--book-title-color);
+    display: flex;
+    flex-direction: column;
+}
+.toc-head {
+    height: 52px;
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.12);
+}
+.toc-head strong { font-size: 15px; }
+.toc-head button {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--global-nav-text);
+    cursor: pointer;
+    font-size: 20px;
+}
+.toc-head button:hover { background: var(--global-nav-hover-bg); color: var(--book-title-color); }
+.toc-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+.toc-item {
+    width: 100%;
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--book-title-color);
+    padding: 8px 10px;
+    cursor: pointer;
+    text-align: left;
+}
+.toc-item:hover,
+.toc-item.active { background: var(--global-nav-hover-bg); }
+.toc-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+.toc-item em {
+    color: var(--global-nav-text);
+    font-style: normal;
+    font-size: 11px;
+}
+.toc-empty {
+    padding: 18px 10px;
+    color: var(--global-nav-text);
+    font-size: 13px;
+}
